@@ -11,7 +11,7 @@ st.set_page_config(
 st.title("🧾 Receipt Expense Categorizer")
 st.write("Upload a receipt to extract data and categorize expenses.")
 
-# Retrieve API Key securely from Streamlit secrets or sidebar
+# ดึง API Key จาก Streamlit Secrets หรือช่องกรอก
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 if not api_key:
@@ -34,7 +34,7 @@ if uploaded_file and api_key:
                 client = genai.Client(api_key=api_key.strip())
 
                 prompt = """
-                Analyze this receipt and categorize each item strictly according to the following Store Account Chart (หมวดหมู่ บัญชีร้าน):
+                Analyze this receipt and extract each individual line item. Categorize each item strictly according to the following Store Account Chart (หมวดหมู่ บัญชีร้าน):
 
                 --- CHART OF ACCOUNTS ---
                 1. ต้นทุนอาหาร (Food Cost):
@@ -88,14 +88,14 @@ if uploaded_file and api_key:
                    - 4206: ดื่มพนักงาน
 
                 --- RULES ---
-                1. Group items by category code and name.
-                2. If discounts or vouchers exist on the receipt, distribute them proportionally across the categories based on gross totals.
-                3. Return ONLY a valid JSON array of objects with these exact keys:
-                   - "category_code": string (e.g., "1102")
-                   - "category_name": string (e.g., "ของสด - แม็คโคร / โลตัส")
-                   - "gross_total": float
-                   - "discount": float
-                   - "net_total": float
+                1. If discounts or vouchers exist on the receipt, distribute them proportionally across the items and categories based on gross amounts.
+                2. Return ONLY a valid JSON array of objects representing each individual item on the receipt, with these exact keys:
+                   - "item_name": string (ชื่อสินค้า)
+                   - "category_code": string (รหัสหมวดหมู่ เช่น "1102")
+                   - "category_name": string (ชื่อหมวดหมู่)
+                   - "gross_amount": float (ยอดเงินก่อนส่วนลดของรายการนี้)
+                   - "discount": float (ส่วนลดเฉลี่ยตามสัดส่วน)
+                   - "net_amount": float (ยอดสุทธิหลังหักส่วนลด)
 
                 Do not include markdown backticks or any introductory/closing text outside the JSON array.
                 """
@@ -110,16 +110,46 @@ if uploaded_file and api_key:
                     .replace("```", "")
                     .strip()
                 )
-                data = json.loads(clean_json)
+                items_data = json.loads(clean_json)
 
-                df = pd.DataFrame(data)
+                df_items = pd.DataFrame(items_data)
 
                 st.success("Analysis Complete!")
-                st.subheader("📊 Expense Summary")
-                st.dataframe(df, use_container_width=True)
 
-                tsv_data = df.to_csv(sep="\t", index=False)
-                st.subheader("📋 Copy to Clipboard (Paste directly into Excel)")
+                # 1. แสดงตารางรายสินค้าทั้งหมด
+                st.subheader("📋 รายการสินค้าทั้งหมด (Itemized Breakdown)")
+                st.dataframe(df_items, use_container_width=True)
+
+                # 2. สรุปยอดรวมแยกตามหมวดหมู่
+                st.subheader("📊 สรุปยอดรวมแยกตามหมวดหมู่ (Category Summary)")
+                df_summary = (
+                    df_items.groupby(["category_code", "category_name"])[
+                        ["gross_amount", "discount", "net_amount"]
+                    ]
+                    .sum()
+                    .reset_index()
+                )
+                df_summary.columns = [
+                    "Category Code",
+                    "Category Name",
+                    "Gross Total",
+                    "Discount",
+                    "Net Total",
+                ]
+                st.dataframe(df_summary, use_container_width=True)
+
+                # 3. เตรียมข้อมูลสำหรับ Copy (เฉพาะ Category Code และ Net Total รวมกลุ่มตามรหัส)
+                df_copy = (
+                    df_items.groupby("category_code")["net_amount"]
+                    .sum()
+                    .reset_index()
+                )
+                df_copy.columns = ["Category Code", "Net Total"]
+
+                tsv_data = df_copy.to_csv(sep="\t", index=False, header=False)
+                st.subheader(
+                    "📋 Copy to Clipboard (Category Code & Net Total Only)"
+                )
                 st.code(tsv_data, language="text")
 
             except Exception as e:
