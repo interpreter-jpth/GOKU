@@ -11,21 +11,31 @@ st.set_page_config(
 st.title("🧾 Receipt Expense Categorizer")
 st.write("Upload a receipt to extract data and categorize expenses.")
 
-# Sidebar for API Key input
-api_key = st.sidebar.text_input("Enter Gemini API Key", type="password")
+# Sidebar API Key Input
+st.sidebar.header("Configuration")
+api_key = st.sidebar.text_input(
+    "Enter Gemini API Key", type="password", help="Paste key and press Enter"
+)
 
 uploaded_file = st.file_uploader(
     "Choose a receipt image...", type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file and api_key:
+# Show image preview as soon as uploaded
+if uploaded_file:
     image = Image.open(uploaded_file)
     st.image(image, caption="Uploaded Receipt", use_container_width=True)
 
-    if st.button("Process Receipt"):
+# Processing logic
+if uploaded_file and api_key:
+    if st.button("Process Receipt", type="primary"):
         with st.spinner("Analyzing receipt with Gemini AI..."):
             try:
-                genai.configure(api_key=api_key)
+                # Clean API Key in case of accidental spaces
+                clean_api_key = api_key.strip()
+                genai.configure(api_key=clean_api_key)
+
+                # Use Gemini 1.5 Flash
                 model = genai.GenerativeModel("gemini-1.5-flash")
 
                 prompt = """
@@ -50,6 +60,8 @@ if uploaded_file and api_key:
                 """
 
                 response = model.generate_content([prompt, image])
+
+                # Clean potential markdown backticks from response
                 clean_json = (
                     response.text.strip()
                     .replace("```json", "")
@@ -60,16 +72,17 @@ if uploaded_file and api_key:
 
                 df = pd.DataFrame(data)
 
+                st.success("Analysis Complete!")
                 st.subheader("📊 Expense Summary")
                 st.dataframe(df, use_container_width=True)
 
-                # Easy copyable TSV format (Paste directly into Excel/Google Sheets)
+                # Format as Tab-Separated Values (TSV) for direct paste into Excel/Sheets
                 tsv_data = df.to_csv(sep="\t", index=False)
-                st.subheader("📋 Copy to Clipboard (For Excel/Google Sheets)")
+                st.subheader("📋 Copy to Clipboard (Paste directly to Excel)")
                 st.code(tsv_data, language="text")
 
             except Exception as e:
                 st.error(f"Error processing receipt: {e}")
 
 elif uploaded_file and not api_key:
-    st.warning("Please enter your Gemini API Key in the sidebar to proceed.")
+    st.info("👈 Please paste your Gemini API Key in the sidebar to proceed.")
