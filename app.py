@@ -138,17 +138,18 @@ if uploaded_file and api_key:
                 ]
                 st.dataframe(df_summary, use_container_width=True)
 
-                # 3. เตรียมข้อมูลสำหรับ Copy (เฉพาะ Category Code และ Net Total รวมกลุ่มตามรหัส)
+                # 3. เตรียมข้อมูลสำหรับ Copy (สลับให้ Net Total อยู่คอลัมน์แรก และ Category Code อยู่คอลัมน์ที่สอง)
                 df_copy = (
                     df_items.groupby("category_code")["net_amount"]
                     .sum()
                     .reset_index()
                 )
-                df_copy.columns = ["Category Code", "Net Total"]
+                # จัดเรียงลำดับคอลัมน์ใหม่: เอา net_amount ขึ้นก่อน ตามด้วย category_code
+                df_copy = df_copy[["net_amount", "category_code"]]
 
                 tsv_data = df_copy.to_csv(sep="\t", index=False, header=False)
                 st.subheader(
-                    "📋 Copy to Clipboard (Category Code & Net Total Only)"
+                    "📋 Copy to Clipboard (Net Total first, then Category Code)"
                 )
                 st.code(tsv_data, language="text")
 
