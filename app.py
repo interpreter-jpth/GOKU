@@ -19,32 +19,43 @@ if not api_key:
         "Enter Gemini API Key", type="password", help="Paste key and press Enter"
     )
 
-# รองรับไฟล์ PDF เพิ่มเติมจากเดิม (jpg, jpeg, png)
 uploaded_file = st.file_uploader(
     "Choose a receipt file...", type=["jpg", "jpeg", "png", "pdf"]
 )
 
 if uploaded_file:
-    # ตรวจสอบประเภทไฟล์ที่อัปโหลด
     file_extension = uploaded_file.name.split(".")[-1].lower()
 
     if file_extension in ["jpg", "jpeg", "png"]:
         image = Image.open(uploaded_file)
         st.image(image, caption="Uploaded Receipt Image", use_container_width=True)
-        file_content_for_gemini = image
     elif file_extension == "pdf":
         st.info(f"📄 Uploaded PDF: {uploaded_file.name} (Ready for processing)")
-        # อ่านไฟล์ PDF เป็นไบต์ส่งให้ Gemini โดยตรง
-        file_content_for_gemini = {
-            "mime_type": "application/pdf",
-            "data": uploaded_file.getvalue(),
-        }
 
 if uploaded_file and api_key:
     if st.button("Process Receipt", type="primary"):
         with st.spinner("Analyzing receipt with Gemini AI..."):
+            uploaded_obj = None
             try:
                 client = genai.Client(api_key=api_key.strip())
+
+                file_extension = uploaded_file.name.split(".")[-1].lower()
+
+                # จัดการเตรียมไฟล์ส่งให้ Gemini ตามประเภท
+                if file_extension in ["jpg", "jpeg", "png"]:
+                    content_payload = Image.open(uploaded_file)
+                elif file_extension == "pdf":
+                    # สำหรับ PDF ให้บันทึกไฟล์ชั่วคราวแล้วอัปโหลดผ่าน Files API ของ Gemini
+                    import tempfile
+
+                    with tempfile.NamedTemporaryFile(
+                        delete=False, suffix=".pdf"
+                    ) as tmp:
+                        tmp.write(uploaded_file.getvalue())
+                        tmp_path = tmp.name
+
+                    uploaded_obj = client.files.upload(file=tmp_path)
+                    content_payload = uploaded_obj
 
                 prompt = """
                 Analyze this receipt and extract each individual line item. Categorize each item strictly according to the following Store Account Chart (หมวดหมู่ บัญชีร้าน):
@@ -114,8 +125,7 @@ if uploaded_file and api_key:
                 """
 
                 response = client.models.generate_content(
-                    model="gemini-3.8-flash",
-                    contents=[prompt, file_content_for_gemini],
+                    model="gemini-3.8-flash", contents=[prompt, content_payload]
                 )
 
                 clean_json = (
