@@ -31,7 +31,6 @@ if uploaded_file and api_key:
     if st.button("Process Receipt", type="primary"):
         with st.spinner("Analyzing receipt with Gemini AI..."):
             try:
-                # ใช้ Client แบบใหม่ตามมาตรฐาน SDK ปัจจุบัน
                 client = genai.Client(api_key=api_key.strip())
 
                 prompt = """
@@ -55,8 +54,9 @@ if uploaded_file and api_key:
                 Do not include markdown formatting or extra text outside the JSON array.
                 """
 
+                # อัปเดตมาใช้รุ่น gemini-3.8-flash ตามคำแนะนำของ API
                 response = client.models.generate_content(
-                    model="gemini-2.5-flash", contents=[prompt, image]
+                    model="gemini-3.8-flash", contents=[prompt, image]
                 )
 
                 clean_json = (
