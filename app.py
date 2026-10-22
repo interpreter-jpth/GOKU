@@ -115,8 +115,10 @@ if uploaded_file and api_key:
 
                 st.success("Analysis Complete!")
 
-                # --- ส่วนที่ 1: ตารางสำหรับบัญชี (Accounting Summary & Copy) ---
-                st.subheader("📊 1. Accounting Summary & Clipboard")
+                # --- ส่วนที่ 1: ตารางสำหรับบัญชี (แสดงยอดรวม, รหัส และชื่อหมวดหมู่) ---
+                st.subheader(
+                    "📊 1. Accounting Summary (Net Total | Code | Name)"
+                )
 
                 df_summary = (
                     df_items.groupby(["category_code", "category_name"])[
@@ -132,11 +134,11 @@ if uploaded_file and api_key:
                 ]
                 st.dataframe(df_summary, use_container_width=True)
 
-                # Copy สำหรับ Excel (Net Total | Category Code)
-                df_copy = df_summary[["Net Total", "Category Code"]]
+                # จัดเรียงให้ Net Total อยู่ซ้าย ตามด้วย Code และ Name สำหรับ Copy
+                df_copy = df_summary[["Net Total", "Category Code", "Category Name"]]
                 tsv_data = df_copy.to_csv(sep="\t", index=False, header=False)
                 st.text(
-                    "📋 Copy to Clipboard (Net Total | Code for Accounting):"
+                    "📋 Copy to Clipboard (Net Total | Code | Name for Accounting):"
                 )
                 st.code(tsv_data, language="text")
 
@@ -148,10 +150,10 @@ if uploaded_file and api_key:
                 )
                 st.dataframe(df_items, use_container_width=True)
 
-                # แปลงข้อมูลเป็น CSV เพื่อให้กดดาวน์โหลดไปรวมยอดรายเดือน
-                csv_data = df_items.to_csv(index=False).encode("utf-8")
+                # แก้ปัญหาภาษาไทยใน CSV โดยเพิ่ม encoding utf-8-sig (รองรับภาษาไทยใน Excel สมบูรณ์แบบ)
+                csv_data = df_items.to_csv(index=False, encoding="utf-8-sig").encode("utf-8-sig")
                 st.download_button(
-                    label="📥 Download Purchasing CSV for Monthly Tracker",
+                    label="📥 Download Purchasing CSV (Thai-Supported) for Monthly Tracker",
                     data=csv_data,
                     file_name="purchasing_tracker_data.csv",
                     mime="text/csv",
