@@ -1,5 +1,5 @@
 import json
-import google.generativeai as genai
+from google import genai
 import pandas as pd
 from PIL import Image
 import streamlit as st
@@ -11,7 +11,7 @@ st.set_page_config(
 st.title("🧾 Receipt Expense Categorizer")
 st.write("Upload a receipt to extract data and categorize expenses.")
 
-# Retrieve API key securely from Streamlit secrets or fallback to sidebar
+# ดึง API Key จาก Streamlit Secrets หรือช่องกรอก
 api_key = st.secrets.get("GEMINI_API_KEY", "")
 
 if not api_key:
@@ -31,8 +31,8 @@ if uploaded_file and api_key:
     if st.button("Process Receipt", type="primary"):
         with st.spinner("Analyzing receipt with Gemini AI..."):
             try:
-                genai.configure(api_key=api_key.strip())
-                model = genai.GenerativeModel("gemini-1.5-flash")
+                # ใช้ Client แบบใหม่ตามมาตรฐาน SDK ปัจจุบัน
+                client = genai.Client(api_key=api_key.strip())
 
                 prompt = """
                 Analyze this receipt and categorize items according to the New Chart of Accounts:
@@ -55,7 +55,10 @@ if uploaded_file and api_key:
                 Do not include markdown formatting or extra text outside the JSON array.
                 """
 
-                response = model.generate_content([prompt, image])
+                response = client.models.generate_content(
+                    model="gemini-2.5-flash", contents=[prompt, image]
+                )
+
                 clean_json = (
                     response.text.strip()
                     .replace("```json", "")
@@ -78,4 +81,4 @@ if uploaded_file and api_key:
                 st.error(f"Error processing receipt: {e}")
 
 elif uploaded_file and not api_key:
-    st.info("Please set up your API Key in Streamlit Cloud Secrets.")
+    st.info("Please set up your API Key in Streamlit Secrets or the sidebar.")
