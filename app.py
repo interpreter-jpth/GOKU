@@ -9,7 +9,7 @@ st.set_page_config(
 )
 
 st.title("🧾 Receipt Expense Categorizer")
-st.write("Upload a receipt to extract data and categorize expenses.")
+st.write("Upload a receipt (Image or Scanned PDF) to extract and categorize expenses.")
 
 # ดึง API Key จาก Streamlit Secrets หรือช่องกรอก
 api_key = st.secrets.get("GEMINI_API_KEY", "")
@@ -19,13 +19,26 @@ if not api_key:
         "Enter Gemini API Key", type="password", help="Paste key and press Enter"
     )
 
+# รองรับไฟล์ PDF เพิ่มเติมจากเดิม (jpg, jpeg, png)
 uploaded_file = st.file_uploader(
-    "Choose a receipt image...", type=["jpg", "jpeg", "png"]
+    "Choose a receipt file...", type=["jpg", "jpeg", "png", "pdf"]
 )
 
 if uploaded_file:
-    image = Image.open(uploaded_file)
-    st.image(image, caption="Uploaded Receipt", use_container_width=True)
+    # ตรวจสอบประเภทไฟล์ที่อัปโหลด
+    file_extension = uploaded_file.name.split(".")[-1].lower()
+
+    if file_extension in ["jpg", "jpeg", "png"]:
+        image = Image.open(uploaded_file)
+        st.image(image, caption="Uploaded Receipt Image", use_container_width=True)
+        file_content_for_gemini = image
+    elif file_extension == "pdf":
+        st.info(f"📄 Uploaded PDF: {uploaded_file.name} (Ready for processing)")
+        # อ่านไฟล์ PDF เป็นไบต์ส่งให้ Gemini โดยตรง
+        file_content_for_gemini = {
+            "mime_type": "application/pdf",
+            "data": uploaded_file.getvalue(),
+        }
 
 if uploaded_file and api_key:
     if st.button("Process Receipt", type="primary"):
@@ -101,7 +114,8 @@ if uploaded_file and api_key:
                 """
 
                 response = client.models.generate_content(
-                    model="gemini-3.8-flash", contents=[prompt, image]
+                    model="gemini-3.8-flash",
+                    contents=[prompt, file_content_for_gemini],
                 )
 
                 clean_json = (
@@ -116,7 +130,7 @@ if uploaded_file and api_key:
 
                 st.success("Analysis Complete!")
 
-                # 1. แสดงตารางรายสินค้าทั้งหมด
+                # 1. รายการสินค้าทั้งหมด
                 st.subheader("📋 รายการสินค้าทั้งหมด (Itemized Breakdown)")
                 st.dataframe(df_items, use_container_width=True)
 
@@ -138,19 +152,16 @@ if uploaded_file and api_key:
                 ]
                 st.dataframe(df_summary, use_container_width=True)
 
-                # 3. เตรียมข้อมูลสำหรับ Copy (สลับให้ Net Total อยู่คอลัมน์แรก และ Category Code อยู่คอลัมน์ที่สอง)
+                # 3. คัดลอกข้อมูล (Net Total ซ้าย, Category Code ขวา)
                 df_copy = (
                     df_items.groupby("category_code")["net_amount"]
                     .sum()
                     .reset_index()
                 )
-                # จัดเรียงลำดับคอลัมน์ใหม่: เอา net_amount ขึ้นก่อน ตามด้วย category_code
                 df_copy = df_copy[["net_amount", "category_code"]]
 
                 tsv_data = df_copy.to_csv(sep="\t", index=False, header=False)
-                st.subheader(
-                    "📋 Copy to Clipboard (Net Total first, then Category Code)"
-                )
+                st.subheader("📋 Copy to Clipboard (Net Total | Category Code)")
                 st.code(tsv_data, language="text")
 
             except Exception as e:
