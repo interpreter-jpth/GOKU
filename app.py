@@ -11,11 +11,13 @@ st.set_page_config(
 st.title("🧾 Receipt Expense Categorizer")
 st.write("Upload a receipt to extract data and categorize expenses.")
 
-# Regular visible text box (No red box glitches)
-st.sidebar.header("Configuration")
-api_key = st.sidebar.text_input(
-    "Enter Gemini API Key", value="", placeholder="AIzaSy..."
-)
+# Retrieve API key securely from Streamlit secrets or fallback to sidebar
+api_key = st.secrets.get("GEMINI_API_KEY", "")
+
+if not api_key:
+    api_key = st.sidebar.text_input(
+        "Enter Gemini API Key", type="password", help="Paste key and press Enter"
+    )
 
 uploaded_file = st.file_uploader(
     "Choose a receipt image...", type=["jpg", "jpeg", "png"]
@@ -76,4 +78,4 @@ if uploaded_file and api_key:
                 st.error(f"Error processing receipt: {e}")
 
 elif uploaded_file and not api_key:
-    st.info("👈 Please enter your Gemini API Key in the sidebar.")
+    st.info("Please set up your API Key in Streamlit Cloud Secrets.")
